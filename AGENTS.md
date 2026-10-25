@@ -1,0 +1,12 @@
+# Physics contributor instructions
+
+These instructions apply to this repository. Read [orientation](docs/orientation.md), [workflow](docs/workflow.md) and the canonical [project status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md) before work. The central status owns the active stage; do not maintain a competing local schedule.
+
+- Inspect Git status and current source, preserve other contributors' changes and distinguish implemented, agreed, proposed and open work. All project content and identifiers must be English; use `//` for new C/C++ comments and preserve license attribution.
+- Record the task's stage, bounded scope, dependencies, acceptance evidence and deferred work through the [shared contribution workflow](https://github.com/motion-tennis/documentation/blob/main/docs/contribution-workflow.md). Complete already authorized work without repeatedly asking for routine approvals.
+- Do not automatically start another stage after a task passes. A human may explicitly authorize a bounded future-stage slice; record its scope/dependency gaps in the handoff without advancing global status. If central status is unavailable, runtime work requires verified pinned status/task evidence, not a guessed stage.
+- Pi is the sole authoritative calculator of ball, avatars, serve/rules and score; Windows stores the committed state. Preserve every required `ball_state_request`/`ball_state_response`, per-input query key, ordered atomic update, epoch/version fence and feedback after accepted commit.
+- Keep all regular 200 Hz samples and identities, bounded queues, local deadlines and complete failure accounting. A diagnostic threshold marker must not change sending, priority or gameplay decisions. Technical failures are not tennis faults or ordinary misses.
+- Preserve native timestamps, Pi-owned immutable clock mappings/uncertainty and body-relative 2.5D fusion. Do not turn physical station positions into virtual avatar roots or claim measured depth/yaw from unsupported inputs.
+- The current proposed schema is ball-only; use the centrally reviewed full-match extension before dependent runtime work. Camera inference, rendering and synchronous debug work do not belong in the Pi simulation path.
+- Run only real checks appropriate to the scoped change and report their limits. No runtime build/test command exists until actual source/build files are added. Leave evidence and a bounded handoff; central gates decide stage acceptance.

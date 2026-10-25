@@ -2,6 +2,8 @@
 
 The fusion and physics component of **Motion Tennis**, a doubles tennis demonstrator for four people in two fixed teams. It runs on the available **Raspberry Pi 3 Model B**, combines wireless controller measurements with laptop webcam observations, and calculates automatic avatar movement, ball motion, serve/rally transitions and score changes using state requested from the PC game service.
 
+Start with [repository orientation](docs/orientation.md), [staged workflow](docs/workflow.md) and the canonical [current project status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md). This README describes the intended component; it does not authorize implementing every planned feature at once. [AGENTS.md](AGENTS.md) defines local contributor boundaries.
+
 ## Status and execution environment
 
 | Status | Meaning |
@@ -82,6 +84,8 @@ Configured GitHub access is required. Planned modules are nonblocking transport/
 
 ## Planned smoke test and current checks
 
+These planned checks span future stages. Select one authorized slice through the [workflow](docs/workflow.md); they are not a single current implementation task.
+
 Start with synthetic controller/pose streams and a game-state simulator on the actual Pi. Trace four simultaneous inputs through their logical queries, deterministic ordering, one atomic commit and four matching results. Exercise stale state, removed-invalid entries, duplicates, lost commit replies, restart, queue overflow and periodic-only movement. After the match-contract extension, add four-slot readiness, automatic movement with manual swings, serving, score transitions and duplicate-point prevention. Integrate real sensors using the [one-to-four-controller matrix](https://github.com/motion-tennis/documentation/blob/main/docs/testing.md); only the four-player case is a normal doubles match.
 
 No component or hardware tests have run. Current documentation check:
@@ -95,8 +99,11 @@ Use the central [development checker](https://github.com/motion-tennis/documenta
 ## Layout, limitations, and contribution
 
 ```text
-README.md  Component reference profile and implementation status
-LICENSE    Existing MIT license
+README.md            Component reference profile and implementation status
+AGENTS.md            Contributor scope and contract rules
+docs/orientation.md  Role, reading order and bounded entry tasks
+docs/workflow.md     Local contribution to shared stages and handoffs
+LICENSE              Existing MIT license
 ```
 
 No source establishes timing, fusion accuracy or collision behavior. Calibrated geometry, clock uncertainty, heading drift and four-player capacity remain acceptance gates. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
