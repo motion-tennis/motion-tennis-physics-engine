@@ -4,6 +4,8 @@ The fusion and physics component of **Motion Tennis**, a doubles tennis demonstr
 
 Start with [repository orientation](docs/orientation.md), [staged workflow](docs/workflow.md) and the canonical [current project status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md). This README describes the intended component; it does not authorize implementing every planned feature at once. [AGENTS.md](AGENTS.md) defines local contributor boundaries.
 
+The [S0 contract review and first S1 handoff](docs/s0-contract-review.md) record this component's producer/consumer expectations, required fixtures and remaining evidence.
+
 ## Status and execution environment
 
 | Status | Meaning |
@@ -17,7 +19,7 @@ The Pi 3 Model B is confirmed hardware; its ability to meet the proposed targets
 
 ## Responsibilities and fusion boundary
 
-Physics owns controller/person association, clock-mapped input selection, calibrated body-relative gesture mapping, sensor fusion, swing classification, collision and every authoritative match calculation. This includes ball motion, four avatar roots/headings, serve/rally state and score changes. The Windows game service stores the sole committed state; the renderer must not create competing movement or rule results. The current schema is still ball-only and needs the versioned match-contract extension described below before full doubles implementation.
+Physics owns controller/person association, clock-mapped input selection, calibrated body-relative gesture mapping, sensor fusion, swing classification, collision and every authoritative match calculation. This includes ball motion, four avatar roots/headings, serve/rally state and score changes. The Windows game service stores the sole committed state; the renderer must not create competing movement or rule results. The proposed v0.3 schema carries the complete candidate under the versioned setup and atomic-commit rules in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md); no physics runtime is implemented.
 
 The controller's [independent threshold marker](https://github.com/motion-tennis/documentation/blob/main/docs/imu-trigger-markers.md) is joined to existing sample/transaction traces asynchronously. Physics preserves pose, query, batch, decision, commit and feedback identities so the viewer can follow the full path. The marker does not change gameplay payloads, admission, order or priority and is not proof of a swing/hit. Physics must not wait for marker delivery or a debug consumer.
 
@@ -45,22 +47,22 @@ Four 200 Hz controllers offer 800 distinct measurement transactions/s. Every 5 m
 2. Send **`ball_state_request` to the Windows game service** with one logical query entry for each selected transaction.
 3. Receive **`ball_state_response`**, echoing the query entries and one atomic common versioned snapshot. Batching preserves both required directions and each original measurement identity.
 4. Integrate once and evaluate the ordered inputs sequentially against the snapshot and preceding candidate changes. Recheck freshness/expiry after network waiting and before submission.
-5. Send one `state_update` against the exact base version; the game accepts or rejects the complete batch atomically. The existing schema covers final ball state and ordered decisions; the required versioned extension must also cover avatar, serve/rally, roster/rules references and score effects.
+5. Send one `state_update` against the exact base version; the game accepts or rejects the complete batch atomically. The v0.3 schema carries the final ball/avatar/serve/rally/score state, immutable roster/rules references and distinct ordered rule events together with per-input decisions.
 6. After accepted `state_commit_result`, send individual correlated `feedback_result` messages. Each result retains batch version and event index. Failures are explicit outcomes, not ordinary misses.
 
 Periodic-only batches advance automatic movement and ball simulation through the same query/commit path without fabricating a human swing. A busy writer counts skipped releases instead of spawning another writer. Limit catch-up to four logical steps and pause when simulation lag exceeds 20 ms. Uncertain commits pause the writer for status recovery; do not invent a new ID and repeat a possibly accepted hit or score change. Full arbitration, expiry and deduplication rules are in [physics](https://github.com/motion-tennis/documentation/blob/main/docs/physics.md) and [protocol](https://github.com/motion-tennis/documentation/blob/main/docs/protocol.md).
 
 ## Inputs, outputs, and profile
 
-The proposed [`0.2-proposed` schema](https://github.com/motion-tennis/documentation/blob/main/spec/motion.proto) uses bounded UDP/Protobuf live messages, at most 1,200 bytes including envelope; TCP handles control/recovery. No listener is implemented yet.
+The proposed [`0.3-proposed` schema](https://github.com/motion-tennis/documentation/blob/main/spec/motion.proto) retains UDP/Protobuf controller and pose messages at most 1,200 bytes including envelope. Match queries, responses, updates and results use a separate four-byte-length-framed TCP state channel on port 41010 with an 8,192-byte envelope limit; control/recovery remains separate. No listener is implemented yet.
 
-The full doubles snapshot/update/publication contract is not encoded by that ball-only proposal. Before implementing match state, review an explicit schema/profile extension for roster, avatar movement, serve/rally and scoring, including atomicity and bounded-size fixtures. This documentation decision changes no current schema field, numeric profile value, port or stream behavior.
+The full doubles setup/snapshot/update/publication contract and its codec/resource fixtures are defined in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md). [ADR 0011](https://github.com/motion-tennis/documentation/blob/main/docs/adr/0011-full-match-contract-and-state-stream.md) replaces the historical ball-only state datagrams with the bounded state stream. The controller/pose datagram ceiling, 200 Hz inputs, 5 ms batches, eight-entry limit and deadlines stay unchanged; stream buffering and head-of-line delay still need later runtime/device evidence.
 
 | Direction | Interface | Component |
 | --- | --- | --- |
 | Input / output | `controller_input` on UDP 41000 / `feedback_result` to negotiated endpoint | ESP32 controllers |
 | Input | Per-person `skeleton_frame` and common-frame `frame_status` on UDP 41020 | Windows tracking service |
-| Output / input | `ball_state_request` / `ball_state_response` at UDP 41010 | Windows game state service |
+| Output / input | `ball_state_request` / `ball_state_response` at dedicated TCP 41010 | Windows game state service |
 | Output / input | `state_update` / `state_commit_result` at the same state endpoint | Windows game state service |
 | Control | TCP 41040 locally, plus game/tracking control connections | Setup, pairing, clock mapping and recovery |
 | Diagnostics | Buffered stage records, queue/skip/error counters | `debug-units` |
@@ -86,7 +88,7 @@ Configured GitHub access is required. Planned modules are nonblocking transport/
 
 These planned checks span future stages. Select one authorized slice through the [workflow](docs/workflow.md); they are not a single current implementation task.
 
-Start with synthetic controller/pose streams and a game-state simulator on the actual Pi. Trace four simultaneous inputs through their logical queries, deterministic ordering, one atomic commit and four matching results. Exercise stale state, removed-invalid entries, duplicates, lost commit replies, restart, queue overflow and periodic-only movement. After the match-contract extension, add four-slot readiness, automatic movement with manual swings, serving, score transitions and duplicate-point prevention. Integrate real sensors using the [one-to-four-controller matrix](https://github.com/motion-tennis/documentation/blob/main/docs/testing.md); only the four-player case is a normal doubles match.
+Start with synthetic controller/pose streams and a game-state simulator on the actual Pi. Trace four simultaneous inputs through their logical queries, deterministic ordering, one atomic commit and four matching results. Exercise stale state, removed-invalid entries, duplicates, lost commit replies, restart, queue overflow and periodic-only movement. At the released full-game stage, add four-slot readiness, automatic movement with manual swings, serving, score transitions and duplicate-point prevention against the v0.3 contract. Integrate real sensors using the [one-to-four-controller matrix](https://github.com/motion-tennis/documentation/blob/main/docs/testing.md); only the four-player case is a normal doubles match.
 
 No component or hardware tests have run. Current documentation check:
 

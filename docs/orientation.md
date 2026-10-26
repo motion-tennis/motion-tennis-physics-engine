@@ -20,7 +20,7 @@ Pi alone calculates ball motion, automatic avatar roots/headings, body-relative 
 
 Repository inspection on 2026-10-25 found documentation and the MIT license only: no fusion/simulation runtime, transport, build files, dependency lock or tests. C++20/CMake and a verified 64-bit Pi OS profile remain proposed. Hardware availability does not establish timing capacity. Reinspect current files for each task and use the [central status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md) for project progress.
 
-The proposed shared schema currently covers ball state and per-input decisions, not the complete doubles roster, avatar, serve/rally and score state. Its [versioned extension](https://github.com/motion-tennis/documentation/blob/main/docs/protocol.md#doubles-match-contract-extension), atomicity and bounded-size fixtures are prerequisites for dependent implementation. Do not invent private fields in this component or silently change the published stream/timing profile.
+The proposed v0.3 shared schema defines complete doubles setup and ball/avatar/serve/rally/score state with atomic update and bounded state-stream framing. Use the reviewed fixtures and hashes in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md) before dependent implementation. The [component review](s0-contract-review.md) records invariants and the first S1 handoff. Do not invent private fields or silently change the continuous input/timing profile.
 
 ## Reading order
 

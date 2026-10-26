@@ -15,7 +15,7 @@ Read the central status to find the active stage. This local table explains the 
 | S6 — Reproducible demonstrator | Stabilize verified deployment, startup, recovery and evidence capture on the declared Pi | Fresh-setup reproduction, pinned versions/configuration, commands and complete run bundle | Unrequested physics features or unproven real-time guarantees |
 | S7 — Deferred true 3D/alternatives | Perform only an explicitly authorized research/migration slice | New scope, contract impact and evidence plan | Automatic progression from S6; unapproved depth/sensor/transport/hardware changes |
 
-S0 closes the current ball-only contract gap before dependent runtime slices. S1 deliberately uses fakes and a minimal deterministic core; it does not promise the final fusion model, avatar planner or tennis rule engine. The real Pi is assessed in S2 without conflating hardware feasibility with S4 playability.
+S0 reviews and verifies the v0.3 full-match contract before dependent runtime slices. S1 deliberately uses fakes and a minimal deterministic core; it does not promise the final fusion model, avatar planner or tennis rule engine. The real Pi is assessed in S2 without conflating hardware feasibility with S4 playability.
 
 ## Task boundaries and coordination
 
