@@ -2,6 +2,19 @@
 
 These instructions apply to this repository. Read [orientation](docs/orientation.md), [workflow](docs/workflow.md) and the canonical [project status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md) before work. The central status owns the active stage; do not maintain a competing local schedule.
 
+## Git branch and remote workflow
+
+Follow the [shared Git workflow](https://github.com/motion-tennis/documentation/blob/main/docs/contribution-workflow.md#git-branch-and-remote-workflow) for every task.
+
+- Before any file edit, verify the repository, current branch and working-tree status. Work on a dedicated branch for this task, never on `main`, detached HEAD or another task's branch. Preserve existing work; use a separate worktree when needed rather than resetting, discarding or automatically stashing it.
+- Fetch before starting and create new task branches from the freshly fetched `origin/main` with `--no-track`; verify the remote/default branch first. If fetching fails, record the failure and known base revision before continuing local work on a task branch. Remote freshness remains unverified, and pushing must wait for a successful fetch and synchronization.
+- Before every authorized push, run `git fetch --prune origin`, review changes to `origin/main` since the previous synchronization, and integrate the latest main and any new commits on the remote task branch into the task branch.
+- Prefer merges to preserve published history. Resolve conflicts while preserving both contributors' intent; ask only when the intended resolution is ambiguous. Rerun relevant checks after integration and require `origin/main` and the existing remote task branch to be ancestors of `HEAD` before pushing.
+- Push explicitly to the intended remote task branch. If the remote advances or rejects a push, fetch, integrate, resolve conflicts and revalidate before retrying. Do not force-push, rewrite shared history or push directly to `main` without explicit authorization for that action.
+- Branch preparation and synchronization do not authorize committing or publishing. Honor existing user authorization without asking for it again; otherwise leave the reviewed changes local and report the branch, checks and any synchronization limits.
+
+## Contribution rules
+
 - Inspect Git status and current source, preserve other contributors' changes and distinguish implemented, agreed, proposed and open work. All project content and identifiers must be English; use `//` for new C/C++ comments and preserve license attribution.
 - Record the task's stage, bounded scope, dependencies, acceptance evidence and deferred work through the [shared contribution workflow](https://github.com/motion-tennis/documentation/blob/main/docs/contribution-workflow.md). Complete already authorized work without repeatedly asking for routine approvals.
 - Do not automatically start another stage after a task passes. A human may explicitly authorize a bounded future-stage slice; record its scope/dependency gaps in the handoff without advancing global status. If central status is unavailable, runtime work requires verified pinned status/task evidence, not a guessed stage.
