@@ -4,13 +4,13 @@ The fusion and physics component of **Motion Tennis**, a doubles tennis demonstr
 
 Start with [repository orientation](docs/orientation.md), [staged workflow](docs/workflow.md) and the canonical [current project status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md). This README describes the intended component; it does not authorize implementing every planned feature at once. [AGENTS.md](AGENTS.md) defines local contributor boundaries.
 
-The [S0 contract review and first S1 handoff](docs/s0-contract-review.md) record this component's producer/consumer expectations, required fixtures and remaining evidence.
+The [S0 contract review and first S1 handoff](docs/s0-contract-review.md) record this component's producer/consumer expectations, required fixtures and remaining evidence. The first S1 slice, a deterministic batch core with fake adapters, and its limits are recorded in [S1 batch core](docs/s1-batch-core.md).
 
 ## Status and execution environment
 
 | Status | Meaning |
 | --- | --- |
-| **Implemented** | Documentation and an MIT license only; no simulation, fusion, transport, build configuration or test suite exists |
+| **Implemented** | Documentation and the S1 C++20/CMake batch core: fixed-step ball/avatar integration, bounded input selection, query/commit state machine with full candidate rollback, fake adapters and 23 host fixtures; no fusion, transport, codec, rules or Pi build exists |
 | **Agreed design** | Pi-owned doubles physics/rules, four wireless battery controllers, automatic avatar movement with human racket gestures, webcam-first calibrated 2.5D gameplay, and an explicit ball-state request/response with the Windows game service |
 | **Proposed reference** | Native C++20/CMake on 64-bit Raspberry Pi OS Lite; bounded buffers, nonblocking I/O, 5 ms scheduling and ordered atomic batches |
 | **Open** | Verified OS/kernel/toolchain versions, calibrated error thresholds, measured Pi capacity and eventual performance-driven upgrades |
@@ -19,7 +19,7 @@ The Pi 3 Model B is confirmed hardware; its ability to meet the proposed targets
 
 ## Responsibilities and fusion boundary
 
-Physics owns controller/person association, clock-mapped input selection, calibrated body-relative gesture mapping, sensor fusion, swing classification, collision and every authoritative match calculation. This includes ball motion, four avatar roots/headings, serve/rally state and score changes. The Windows game service stores the sole committed state; the renderer must not create competing movement or rule results. The proposed v0.3 schema carries the complete candidate under the versioned setup and atomic-commit rules in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md); no physics runtime is implemented.
+Physics owns controller/person association, clock-mapped input selection, calibrated body-relative gesture mapping, sensor fusion, swing classification, collision and every authoritative match calculation. This includes ball motion, four avatar roots/headings, serve/rally state and score changes. The Windows game service stores the sole committed state; the renderer must not create competing movement or rule results. The proposed v0.3 schema carries the complete candidate under the versioned setup and atomic-commit rules in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md); only the isolated S1 batch core exists, not a physics runtime.
 
 The controller's [independent threshold marker](https://github.com/motion-tennis/documentation/blob/main/docs/imu-trigger-markers.md) is joined to existing sample/transaction traces asynchronously. Physics preserves pose, query, batch, decision, commit and feedback identities so the viewer can follow the full path. The marker does not change gameplay payloads, admission, order or priority and is not proof of a swing/hit. Physics must not wait for marker delivery or a debug consumer.
 
@@ -73,7 +73,7 @@ The batch service target is p99 at most 4 ms; controller response p99 at most 30
 
 ## Prerequisites and setup
 
-Git and a Markdown viewer are sufficient today. Future implementation requires the selected C++20 compiler, CMake, generated bounded codecs and a verified Pi OS profile. No supported package-install, build or run command exists yet.
+The S1 batch core needs a C++20 compiler, CMake 3.20+ and a generator such as Ninja; it has no external dependencies. The verified host toolchain is recorded in [S1 batch core](docs/s1-batch-core.md#build-and-checks). Generated bounded codecs, a Pi toolchain and a verified Pi OS profile remain future prerequisites. No runtime run command exists yet.
 
 Clone using the verified remote:
 
@@ -90,11 +90,16 @@ These planned checks span future stages. Select one authorized slice through the
 
 Start with synthetic controller/pose streams and a game-state simulator on the actual Pi. Trace four simultaneous inputs through their logical queries, deterministic ordering, one atomic commit and four matching results. Exercise stale state, removed-invalid entries, duplicates, lost commit replies, restart, queue overflow and periodic-only movement. At the released full-game stage, add four-slot readiness, automatic movement with manual swings, serving, score transitions and duplicate-point prevention against the v0.3 contract. Integrate real sensors using the [one-to-four-controller matrix](https://github.com/motion-tennis/documentation/blob/main/docs/testing.md); only the four-player case is a normal doubles match.
 
-No component or hardware tests have run. Current documentation check:
+No hardware tests have run. Current checks are the S1 host fixtures and the whitespace check:
 
 ```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
 git diff --check
 ```
+
+They establish deterministic core semantics against fakes only; see the [evidence boundary](docs/s1-batch-core.md#limits-and-evidence-boundary).
 
 Use the central [development checker](https://github.com/motion-tennis/documentation/blob/main/docs/development.md) for cross-repository links. The [debug specification](https://github.com/motion-tennis/documentation/blob/main/docs/debugging.md) covers correlated traces, packet evidence, failure denominators and replay; synthetic checks do not establish runtime performance.
 
@@ -105,10 +110,14 @@ README.md            Component reference profile and implementation status
 AGENTS.md            Contributor scope and contract rules
 docs/orientation.md  Role, reading order and bounded entry tasks
 docs/workflow.md     Local contribution to shared stages and handoffs
+docs/s1-batch-core.md S1 batch-core evidence, limits and handoff
+CMakeLists.txt       C++20 build of the core, fakes and fixtures
+include/, src/       Batch core, simulation step, input scheduler and fakes
+tests/               S1 acceptance fixtures
 LICENSE              Existing MIT license
 ```
 
-No source establishes timing, fusion accuracy or collision behavior. Calibrated geometry, clock uncertainty, heading drift and four-player capacity remain acceptance gates. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
+No source establishes timing, fusion accuracy or collision behavior; the S1 core uses placeholder ball/avatar physics and scripted contacts. Calibrated geometry, clock uncertainty, heading drift and four-player capacity remain acceptance gates. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
 
 All project edits must be in English, including code, identifiers, comments, docstrings, examples and diagrams. New C/C++ comments use `//`. Keep the shared schema/profile, architecture and related README contracts consistent.
 

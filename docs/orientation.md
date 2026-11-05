@@ -18,7 +18,7 @@ Pi alone calculates ball motion, automatic avatar roots/headings, body-relative 
 
 ## What exists and what remains open
 
-Repository inspection on 2026-10-25 found documentation and the MIT license only: no fusion/simulation runtime, transport, build files, dependency lock or tests. C++20/CMake and a verified 64-bit Pi OS profile remain proposed. Hardware availability does not establish timing capacity. Reinspect current files for each task and use the [central status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md) for project progress.
+Repository inspection on 2026-10-25 found documentation and the MIT license only. The S1 batch core (2026-11-05) adds a C++20/CMake build, deterministic ball/avatar integration, bounded input selection, the query/commit state machine with fake adapters and host fixtures; see [S1 batch core](s1-batch-core.md). There is still no fusion, transport, generated codec, rules engine or Pi build, and a verified 64-bit Pi OS profile remains proposed. Hardware availability does not establish timing capacity. Reinspect current files for each task and use the [central status](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md) for project progress.
 
 The proposed v0.3 shared schema defines complete doubles setup and ball/avatar/serve/rally/score state with atomic update and bounded state-stream framing. Use the reviewed fixtures and hashes in the [S0 baseline](https://github.com/motion-tennis/documentation/blob/main/docs/s0-baseline.md) before dependent implementation. The [component review](s0-contract-review.md) records invariants and the first S1 handoff. Do not invent private fields or silently change the continuous input/timing profile.
 
@@ -35,4 +35,4 @@ When central status authorizes S0, select one deliverable: review the full-match
 
 ## Checks available now
 
-From this repository, `git diff --check` checks tracked-change whitespace. Inspect new files for trailing whitespace and final newlines separately. With the documentation checkout available, run its existing checker there: `python3 scripts/check_docs.py`. It checks supported local documentation constraints, not Pi capacity, clock accuracy, fusion quality or protocol interoperability. Real build/test commands must accompany the implementation that makes them valid.
+From this repository, the S1 fixtures build and run with the CMake/CTest commands in the [S1 batch core](s1-batch-core.md#build-and-checks) record, and `git diff --check` checks tracked-change whitespace. Inspect new files for trailing whitespace and final newlines separately. With the documentation checkout available, run its existing checker there: `python3 scripts/check_docs.py`. It checks supported local documentation constraints, not Pi capacity, clock accuracy, fusion quality or protocol interoperability. Further build/test commands must accompany the implementation that makes them valid.
