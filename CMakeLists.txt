@@ -20,6 +20,7 @@ endif()
 add_library(motion_tennis_physics_core
     src/simulation.cpp
     src/input_scheduler.cpp
+    src/tracking_pose_bridge.cpp
     src/batch_core.cpp)
 target_include_directories(motion_tennis_physics_core PUBLIC include)
 target_link_libraries(motion_tennis_physics_core PRIVATE motion_tennis_physics_options)
@@ -36,4 +37,8 @@ if(MOTION_TENNIS_BUILD_TESTS)
     target_link_libraries(physics_s1_tests
         PRIVATE motion_tennis_physics_fakes motion_tennis_physics_options)
     add_test(NAME physics_s1_tests COMMAND physics_s1_tests)
+    add_executable(tracking_bridge_tests tests/tracking_bridge_tests.cpp)
+    target_link_libraries(tracking_bridge_tests
+        PRIVATE motion_tennis_physics_fakes motion_tennis_physics_options)
+    add_test(NAME tracking_bridge_tests COMMAND tracking_bridge_tests)
 endif()

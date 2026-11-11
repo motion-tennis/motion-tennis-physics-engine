@@ -6,11 +6,13 @@ Start with [repository orientation](docs/orientation.md), [staged workflow](docs
 
 The [S0 contract review and first S1 handoff](docs/s0-contract-review.md) record this component's producer/consumer expectations, required fixtures and remaining evidence. The first S1 slice, a deterministic batch core with fake adapters, and its limits are recorded in [S1 batch core](docs/s1-batch-core.md).
 
+The [offline tracking consumer](docs/s1-tracking-consumer.md) adds typed v0.3 pose ingest, explicit binding and Pi-map validation, loss/restart fences and core rechecks. It retains normalized 2D joints for future fusion and supplies no metric 3D conversion.
+
 ## Status and execution environment
 
 | Status | Meaning |
 | --- | --- |
-| **Implemented** | Documentation and the S1 C++20/CMake batch core: fixed-step ball/avatar integration, bounded input selection, query/commit state machine with full candidate rollback, fake adapters and 23 host fixtures; no fusion, transport, codec, rules or Pi build exists |
+| **Implemented** | S1 C++20/CMake batch core and bounded typed tracking consumer: fixed-step integration, atomic candidate rollback, explicit binding/map/quality validation, loss/restart fences and 57 host checks; no fusion, transport, C++ wire codec, rules or Pi build exists |
 | **Agreed design** | Pi-owned doubles physics/rules, four wireless battery controllers, automatic avatar movement with human racket gestures, webcam-first calibrated 2.5D gameplay, and an explicit ball-state request/response with the Windows game service |
 | **Proposed reference** | Native C++20/CMake on 64-bit Raspberry Pi OS Lite; bounded buffers, nonblocking I/O, 5 ms scheduling and ordered atomic batches |
 | **Open** | Verified OS/kernel/toolchain versions, calibrated error thresholds, measured Pi capacity and eventual performance-driven upgrades |
@@ -99,7 +101,7 @@ ctest --test-dir build --output-on-failure
 git diff --check
 ```
 
-They establish deterministic core semantics against fakes only; see the [evidence boundary](docs/s1-batch-core.md#limits-and-evidence-boundary).
+The two CTest targets contain 23 batch-core and 34 tracking-bridge checks. They establish controlled host semantics against explicit fixtures and fakes; see the [core evidence boundary](docs/s1-batch-core.md#limits-and-evidence-boundary) and [actual producer compatibility check](docs/s1-tracking-consumer.md#validation-and-handoff).
 
 Use the central [development checker](https://github.com/motion-tennis/documentation/blob/main/docs/development.md) for cross-repository links. The [debug specification](https://github.com/motion-tennis/documentation/blob/main/docs/debugging.md) covers correlated traces, packet evidence, failure denominators and replay; synthetic checks do not establish runtime performance.
 
@@ -111,13 +113,14 @@ AGENTS.md            Contributor scope and contract rules
 docs/orientation.md  Role, reading order and bounded entry tasks
 docs/workflow.md     Local contribution to shared stages and handoffs
 docs/s1-batch-core.md S1 batch-core evidence, limits and handoff
+docs/s1-tracking-consumer.md Typed tracking bridge, validation and compatibility evidence
 CMakeLists.txt       C++20 build of the core, fakes and fixtures
 include/, src/       Batch core, simulation step, input scheduler and fakes
 tests/               S1 acceptance fixtures
 LICENSE              Existing MIT license
 ```
 
-No source establishes timing, fusion accuracy or collision behavior; the S1 core uses placeholder ball/avatar physics and scripted contacts. Calibrated geometry, clock uncertainty, heading drift and four-player capacity remain acceptance gates. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
+No source establishes measured timing, fusion accuracy or collision behavior; the S1 core uses placeholder ball/avatar physics and scripted contacts. Clock-map validity and uncertainty are checked against caller-installed evidence; clock fitting, measured clock accuracy, calibrated geometry, heading drift and four-player capacity remain acceptance gates. Controller transaction replay after queue selection also remains an explicit S1 correction; tracking-frame replay fencing does not repair it. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
 
 All project edits must be in English, including code, identifiers, comments, docstrings, examples and diagrams. New C/C++ comments use `//`. Keep the shared schema/profile, architecture and related README contracts consistent.
 

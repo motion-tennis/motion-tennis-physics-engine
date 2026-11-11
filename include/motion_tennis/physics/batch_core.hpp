@@ -58,6 +58,17 @@ struct TraceRecord {
     CommitStatus commit_status = CommitStatus::Unspecified;
     std::uint64_t state_version = 0;
     std::uint64_t simulation_tick = 0;
+    std::uint64_t observed_pi_us = 0;
+    Uuid tracking_session_id{};
+    Uuid pi_reference_session_id{};
+    std::uint32_t pi_reference_clock_id = 0;
+    std::uint32_t person_id = 0;
+    std::uint32_t calibration_id = 0;
+    SourceTime pose_raw_capture;
+    std::uint64_t pose_capture_pi_us = 0;
+    std::uint64_t pose_mapping_id = 0;
+    std::uint32_t pose_mapping_version = 0;
+    std::uint32_t pose_total_uncertainty_us = 0;
     friend bool operator==(const TraceRecord&, const TraceRecord&) = default;
 };
 

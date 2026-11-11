@@ -11,7 +11,7 @@
 | Contract | `motion.v03`, protocol `0.3-proposed`, profile `webcam-pi3-doubles-v3`; read from `documentation@3260994598f492def82abba6046b8fda78257bc6` |
 | Contract hashes | Schema `b6728e240316e957f5c5addb973f12f9a57fffbcdacc4331f3db5e06895f360b`, profile `a3533462fdebfd4c7c2f87eaa3bd579d3056170e3dcfc6a6c68ed34474c1d969`, matching the [S0 gate record](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md#s0-accepted--2026-10-26) |
 | Base revision | `motion-tennis-physics-engine@7184926` (`origin/main` fetched before branching) |
-| Excluded | Real UDP/TCP transport, generated codecs, sensor fusion, clock mapping, the avatar planner, collision geometry, serve/rally/scoring rules and every Pi or network measurement |
+| Excluded | Real UDP/TCP transport, generated C++ codecs, sensor fusion, clock estimation, the avatar planner, collision geometry, serve/rally/scoring rules and every Pi or network measurement |
 
 The schema/profile hashes are computed over the Git blobs. A Windows checkout with `core.autocrlf=true` converts line endings and yields different file hashes; that is a checkout artifact, not a contract change.
 
@@ -23,6 +23,7 @@ The schema/profile hashes are computed over the Git blobs. A Windows checkout wi
 - [`batch_core.hpp`](../include/motion_tennis/physics/batch_core.hpp): the single-writer state machine `Idle -> QueryPending -> Compute -> CommitPending -> Idle`, with `Paused` for errors. It builds one `ball_state_request` per release (empty for periodic-only work), validates the echoed queries and snapshot identity, integrates the required ticks once and evaluates inputs in order so later inputs see earlier candidate changes. Inputs are rechecked after the response and immediately before submission; a newly invalid input produces explicit failure feedback and the whole candidate is rebuilt from the queried snapshot. Swing and cue identities are staged and installed only after `ACCEPTED`. Identical resends at most twice, then an ambiguity pause that only a commit lookup resolves. Late or stray replies are counted and ignored. Catch-up is limited to four ticks; a larger lag pauses instead of integrating the gap.
 - [`adapters.hpp`](../include/motion_tennis/physics/adapters.hpp) and [`fakes.hpp`](../include/motion_tennis/physics/fakes.hpp): pose, contact-evaluation and state-service boundaries. The fake state service follows the offline oracle in `documentation/scripts/match_contract.py`: fenced session/epoch, retained query and commit outcomes, exact-version acceptance, changed-payload rejection and whole-batch rejection. The scripted contact evaluator replaces the real swing/collision model.
 - [`tests/fixtures.hpp`](../tests/fixtures.hpp) mirrors the shared `build_setup`/`build_snapshot` fixture values.
+- The later [typed tracking consumer](s1-tracking-consumer.md) adds complete source evidence and map validation. `BatchCore` rejects permissive legacy pose defaults and independently checks source/session/calibration, required joints, map applicability and conservative age both after the query and before commit. The calculation retains its immutable selected pose while current source invalidation is checked again. Pose capture values in decisions remain original native source times.
 
 The core has no heap allocation in its batch path: all collections are fixed-capacity, and feedback and trace buffers count losses instead of growing. The fakes may allocate.
 
@@ -36,7 +37,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Release and Debug builds both pass all 23 checks:
+The initial 2026-11-05 Release and Debug evidence passed these 23 checks:
 
 | Acceptance item from the S1 handoff | Fixture |
 | --- | --- |
@@ -53,6 +54,8 @@ Release and Debug builds both pass all 23 checks:
 
 Recorded output of `build/physics_s1_tests.exe`, last line: `23/23 S1 batch-core checks passed`.
 
+The 2026-11-11 MSVC Release rerun retains all 23 passes; the new `tracking_bridge_tests` target passes 34 additional checks. See the [consumer validation record](s1-tracking-consumer.md#validation-and-handoff) for current toolchain, actual-producer evidence and remaining limits.
+
 ## Limits and evidence boundary
 
 These are host fixtures against fakes. They establish deterministic core semantics on this workstation only; they do not establish Pi 3 compute time, aarch64 float equivalence, network interoperability with the C# game store, clock accuracy or any latency target.
@@ -60,8 +63,9 @@ These are host fixtures against fakes. They establish deterministic core semanti
 - **Typed, not wire, contract.** No generated Protobuf/nanopb code is used yet. The configuration digest is an opaque placeholder in the fixtures; the real SHA-256 over deterministic encoding needs the generated codec. Retry identity is compared on typed structures here, while production must compare the original canonical bytes.
 - **Placeholder physics.** No net, lines, racket disk, contact latch or spin. Hits come from the scripted evaluator, not from fused pose/IMU geometry. Avatar movement only follows the committed target; no target selection or teammate arbitration happens.
 - **No rules.** The core never changes serve, rally phase or score and emits no rule events. The fake service still rejects score changes without an award event.
-- **Fake time.** Inputs and poses arrive already in Pi time with a mapping version; no clock exchange or mapping validity is evaluated.
+- **Declared time evidence.** Controller input still arrives through a fake already-Pi-time adapter. Tracking poses now require native source time plus a complete explicit immutable map, checked again by the core; no clock exchange or clock fitter is implemented or measured.
 - **Startup handshake.** As in the game-store slice, the fixtures start from a complete version-one snapshot; the live writer registration, setup acknowledgement and initial-state handshake still need to be pinned with the game service.
+- **Controller replay.** Input-scheduler duplicate detection covers queued transactions only. Re-admission of an in-flight or completed controller transaction remains a separate correction; the new tracking source/frame fences do not close that case.
 
 ## Handoff and next bounded options
 

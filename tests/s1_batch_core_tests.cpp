@@ -51,7 +51,7 @@ struct Rig {
 
     void track_all(std::uint64_t capture_pi_us, std::uint64_t frame_id = 10) {
         for (std::uint32_t slot = 1; slot <= 4; ++slot) {
-            poses.set(person_for_slot(slot), tracked_pose(frame_id, capture_pi_us));
+            poses.set(person_for_slot(slot), tracked_pose(frame_id, capture_pi_us, person_for_slot(slot)));
         }
     }
 };
@@ -375,7 +375,7 @@ void test_input_invalidated_before_submission_rebuilds() {
 void test_tracking_unavailable_is_not_a_miss() {
     Rig rig;
     const std::uint64_t now = kInitialPiTimeUs + 5000;
-    PoseObservation lost = tracked_pose(10, now - 3000);
+    PoseObservation lost = tracked_pose(10, now - 3000, person_for_slot(3));
     lost.tracked = false;
     rig.poses.set(person_for_slot(3), lost);
     rig.core.admit(input_for(3, 1, now - 2000), now - 1000);

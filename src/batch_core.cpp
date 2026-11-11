@@ -1,6 +1,39 @@
 #include "motion_tennis/physics/batch_core.hpp"
+#include "motion_tennis/physics/tracking_pose_bridge.hpp"
 
 namespace motion_tennis::physics {
+namespace {
+
+Outcome pose_failure(BridgeCode code) {
+    switch (code) {
+        case BridgeCode::StalePose:
+            return Outcome::StaleInput;
+        case BridgeCode::RequiredJointsUnavailable:
+        case BridgeCode::MissingMap:
+        case BridgeCode::InvalidMap:
+        case BridgeCode::MapExpired:
+        case BridgeCode::MapUncertain:
+            return Outcome::TrackingUnavailable;
+        default:
+            return Outcome::InvalidInput;
+    }
+}
+
+void retain_pose_trace(TraceRecord& record, const PoseObservation& pose, std::uint64_t now_pi_us) {
+    record.observed_pi_us = now_pi_us;
+    record.tracking_session_id = pose.envelope.sender_session_id;
+    record.pi_reference_session_id = pose.mapping.reference.session_id;
+    record.pi_reference_clock_id = pose.mapping.reference.clock_id;
+    record.person_id = pose.source_frame.person_id;
+    record.calibration_id = pose.calibration_id;
+    record.pose_raw_capture = pose.source_frame.capture;
+    record.pose_capture_pi_us = pose.capture_pi_us;
+    record.pose_mapping_id = pose.mapping.mapping_id;
+    record.pose_mapping_version = pose.mapping.version;
+    record.pose_total_uncertainty_us = pose.total_uncertainty_us;
+}
+
+}  // namespace
 
 BatchCore::BatchCore(const MatchSetup& setup, std::uint64_t committed_tick, const PoseSource& poses,
                      const ContactEvaluator& evaluator, SimulationParameters parameters)
@@ -182,7 +215,7 @@ Outcome BatchCore::check_input(std::size_t index, std::uint64_t now_pi_us, bool 
     const PendingInput& item = in_flight_.inputs[index];
     const ControllerInput& input = item.input;
     const PlayerBinding& binding = binding_for_slot(item.player_slot);
-    if (input.association_version != binding.association_version ||
+    if (input.clock_mapping_version == 0 || input.association_version != binding.association_version ||
         input.calibration_id != binding.calibration_id) {
         return Outcome::InvalidInput;
     }
@@ -193,19 +226,31 @@ Outcome BatchCore::check_input(std::size_t index, std::uint64_t now_pi_us, bool 
         return Outcome::StaleInput;
     }
     const std::optional<PoseObservation> current = poses_.latest_for(binding.person_id);
-    if (!current || !current->tracked) {
+    if (!current) {
         return Outcome::TrackingUnavailable;
     }
     if (capture_pose) {
         // Each decision uses one immutable pose snapshot; rebuilds reuse it.
         in_flight_.poses[index] = *current;
     }
+    const PiClockReference reference{in_flight_.snapshot.match.pi_reference_session_id,
+                                     in_flight_.snapshot.match.pi_reference_clock_id};
+    const BridgeCode current_code = validate_tracking_pose(*current, binding, reference, now_pi_us,
+                                                           parameters_.max_pose_age_us);
+    if (current_code != BridgeCode::Accepted) {
+        return pose_failure(current_code);
+    }
     const PoseObservation& pose = in_flight_.poses[index];
-    if (pose.capture_pi_us > now_pi_us) {
+    if (pose.envelope.sender_id != current->envelope.sender_id ||
+        pose.envelope.sender_session_id != current->envelope.sender_session_id ||
+        pose.envelope.run_id != current->envelope.run_id || pose.envelope.clock_id != current->envelope.clock_id ||
+        pose.mapping.reference != current->mapping.reference) {
         return Outcome::InvalidInput;
     }
-    if (now_pi_us - pose.capture_pi_us > parameters_.max_pose_age_us) {
-        return Outcome::StaleInput;
+    const BridgeCode code = validate_tracking_pose(pose, binding, reference, now_pi_us,
+                                                   parameters_.max_pose_age_us);
+    if (code != BridgeCode::Accepted) {
+        return pose_failure(code);
     }
     return Outcome::Unspecified;
 }
@@ -236,6 +281,7 @@ bool BatchCore::recheck_inputs(std::uint64_t now_pi_us, bool capture_pose) {
         record.query_id = in_flight_.request.queries[index].query_id;
         record.transaction = in_flight_.inputs[index].input.transaction;
         record.outcome = failure;
+        retain_pose_trace(record, in_flight_.poses[index], now_pi_us);
         emit_trace(record);
     }
     return newly_failed;
@@ -275,7 +321,7 @@ void BatchCore::build_candidate() {
         decision.person_id = binding.person_id;
         decision.association_version = item.input.association_version;
         decision.imu_capture_us = item.input.capture_pi_us;
-        decision.pose_capture_us = pose.capture_pi_us;
+        decision.pose_capture_us = pose.source_frame.capture.value_us;
         decision.event_index = static_cast<std::uint32_t>(update.decisions.size());
         decision.swing_id = side.next_swing_id++;
         if (contact.outcome == Outcome::Hit) {
@@ -323,6 +369,7 @@ std::optional<StateUpdate> BatchCore::prepare_commit(std::uint64_t now_pi_us) {
         record.outcome = decision.outcome;
         record.state_version = update.base_state_version;
         record.simulation_tick = update.target_simulation_tick;
+        retain_pose_trace(record, in_flight_.poses[index], now_pi_us);
         emit_trace(record);
     }
     TraceRecord submitted;

@@ -105,8 +105,49 @@ inline ControllerInput input_for(std::uint32_t slot, std::uint64_t request_seq, 
     return input;
 }
 
-inline PoseObservation tracked_pose(std::uint64_t frame_id, std::uint64_t capture_pi_us) {
-    return PoseObservation{frame_id, capture_pi_us, 1, true};
+inline PoseObservation tracked_pose(std::uint64_t frame_id, std::uint64_t capture_pi_us,
+                                    std::uint32_t person_id) {
+    PoseObservation pose;
+    pose.frame_id = frame_id;
+    pose.capture_pi_us = capture_pi_us;
+    pose.calibration_id = 1;
+    pose.tracked = true;
+    pose.association_version = 1;
+    pose.envelope = {0, 3, 301, filled_uuid('T'), filled_uuid('R'), frame_id, capture_pi_us + 1000, 1};
+    pose.source_frame.frame_id = frame_id;
+    pose.source_frame.person_id = person_id;
+    pose.source_frame.capture = {capture_pi_us, 1, TimeKind::DriverFrame, 1000, true};
+    pose.source_frame.processing_complete_us = capture_pi_us + 1000;
+    pose.source_frame.processing_clock_id = 1;
+    pose.source_frame.image_width = 1920;
+    pose.source_frame.image_height = 1080;
+    pose.source_frame.calibration_id = 1;
+    pose.source_frame.state = TrackingState::Tracked;
+    for (std::uint32_t index = 0; index < 17; ++index) {
+        pose.source_frame.joints.push_back({index, 0.5f, 0.5f, 0.9f, TrackingState::Tracked});
+    }
+    pose.mapping.mapping_id = 1;
+    pose.mapping.version = 1;
+    pose.mapping.source = {301, filled_uuid('T'), filled_uuid('R'), 1};
+    pose.mapping.reference = {filled_uuid('P'), 1};
+    pose.mapping.source_anchor_us = capture_pi_us;
+    pose.mapping.pi_anchor_us = capture_pi_us;
+    pose.mapping.rate_numerator = 1;
+    pose.mapping.rate_denominator = 1;
+    const std::uint64_t lower = capture_pi_us > 100000 ? capture_pi_us - 100000 : 0;
+    const std::uint64_t upper = kMaxWireUint64 - lower > 5000000 ? lower + 5000000 : kMaxWireUint64;
+    pose.mapping.valid_from_source_us = lower;
+    pose.mapping.valid_until_source_us = upper;
+    pose.mapping.issued_pi_us = lower;
+    pose.mapping.last_good_pi_us = lower;
+    pose.mapping.valid_from_pi_us = lower;
+    pose.mapping.valid_until_pi_us = upper;
+    pose.mapping.uncertainty_us = 500;
+    pose.mapping.valid = true;
+    pose.quality_policy = {0.5f};
+    pose.total_uncertainty_us = 1500;
+    pose.received_pi_us = capture_pi_us + 1000;
+    return pose;
 }
 
 }  // namespace motion_tennis::physics::fixtures

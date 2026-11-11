@@ -372,12 +372,140 @@ struct ControllerInput {
     friend bool operator==(const ControllerInput&, const ControllerInput&) = default;
 };
 
-// Body-local pose evidence for one person, already mapped to Pi time.
+enum class TimeKind : std::uint32_t {
+    Unknown = 0, IrqMonotonic = 1, SensorCapture = 2, DriverFrame = 3, Presentation = 4,
+};
+enum class TrackingState : std::uint32_t { Unspecified = 0, Tracked = 1, Inferred = 2, Unavailable = 3 };
+
+struct SourceTime {
+    std::uint64_t value_us = 0;
+    std::uint32_t clock_id = 0;
+    TimeKind kind = TimeKind::Unknown;
+    std::uint32_t uncertainty_us = 0;
+    bool timing_valid = false;
+    friend bool operator==(const SourceTime&, const SourceTime&) = default;
+};
+
+struct Joint2D {
+    std::uint32_t coco_joint_index = 0;
+    float x_normalized = 0.0f;
+    float y_normalized = 0.0f;
+    float score = 0.0f;
+    TrackingState state = TrackingState::Unspecified;
+    friend bool operator==(const Joint2D&, const Joint2D&) = default;
+};
+
+// Typed mirrors of v0.3 JSON/Protobuf fields. Decoding byte identities and wire
+// validation belong to the caller; this bridge validates their typed meanings.
+struct TrackingEnvelope {
+    std::uint32_t major = 0;
+    std::uint32_t minor = 0;
+    std::uint32_t sender_id = 0;
+    Uuid sender_session_id{};
+    Uuid run_id{};
+    std::uint64_t message_seq = 0;
+    std::uint64_t sent_time_us = 0;
+    std::uint32_t clock_id = 0;
+    friend bool operator==(const TrackingEnvelope&, const TrackingEnvelope&) = default;
+};
+
+struct SkeletonFrame {
+    std::uint64_t frame_id = 0;
+    std::uint32_t person_id = 0;
+    SourceTime capture;
+    std::uint64_t processing_complete_us = 0;
+    std::uint32_t processing_clock_id = 0;
+    std::uint32_t image_width = 0;
+    std::uint32_t image_height = 0;
+    std::uint32_t calibration_id = 0;
+    TrackingState state = TrackingState::Unspecified;
+    BoundedVector<Joint2D, 17> joints;
+    friend bool operator==(const SkeletonFrame&, const SkeletonFrame&) = default;
+};
+
+struct FrameStatus {
+    std::uint64_t frame_id = 0;
+    BoundedVector<std::uint32_t, kPlayers> person_ids;
+    std::uint64_t frames_dropped_total = 0;
+    bool camera_ready = false;
+    friend bool operator==(const FrameStatus&, const FrameStatus&) = default;
+};
+
+struct TrackingPersonPacket {
+    TrackingEnvelope envelope;
+    SkeletonFrame frame;
+    friend bool operator==(const TrackingPersonPacket&, const TrackingPersonPacket&) = default;
+};
+
+// Atomic offline handoff: exactly the people named by this status, from one
+// source frame. UDP assembly, partial-packet deadlines and buffering are later work.
+struct TrackingFrameBatch {
+    TrackingEnvelope status_envelope;
+    FrameStatus status;
+    BoundedVector<TrackingPersonPacket, kPlayers> people;
+    friend bool operator==(const TrackingFrameBatch&, const TrackingFrameBatch&) = default;
+};
+
+struct TrackingSourceSession {
+    std::uint32_t sender_id = 0;
+    Uuid session_id{};
+    Uuid run_id{};
+    std::uint32_t clock_id = 0;
+    friend bool operator==(const TrackingSourceSession&, const TrackingSourceSession&) = default;
+};
+
+struct PiClockReference {
+    Uuid session_id{};
+    std::uint32_t clock_id = 0;
+    friend bool operator==(const PiClockReference&, const PiClockReference&) = default;
+};
+
+// Caller-installed, immutable Pi-owned evidence. Anchored rational rates avoid
+// losing microseconds at uint56 epochs. No clock fitter or measured map is implied.
+struct TrackingClockMap {
+    std::uint64_t mapping_id = 0;
+    std::uint32_t version = 0;
+    TrackingSourceSession source;
+    PiClockReference reference;
+    std::uint64_t source_anchor_us = 0;
+    std::uint64_t pi_anchor_us = 0;
+    std::uint32_t rate_numerator = 0;
+    std::uint32_t rate_denominator = 0;
+    std::uint64_t valid_from_source_us = 0;
+    std::uint64_t valid_until_source_us = 0;
+    std::uint64_t issued_pi_us = 0;
+    std::uint64_t last_good_pi_us = 0;
+    std::uint64_t valid_from_pi_us = 0;
+    std::uint64_t valid_until_pi_us = 0;
+    std::uint32_t uncertainty_us = 0;
+    // Pi-time error growth per raw source microsecond (ppb), matching the
+    // offline clock-map profile's source-anchor basis.
+    std::uint32_t uncertainty_growth_ppb = 0;
+    bool valid = false;
+    friend bool operator==(const TrackingClockMap&, const TrackingClockMap&) = default;
+};
+
+// Explicit fixture/deployment policy, not a measured model-confidence threshold.
+// The zero default is invalid and cannot silently make observations eligible.
+struct TrackingQualityPolicy {
+    float minimum_joint_score = 0.0f;
+    friend bool operator==(const TrackingQualityPolicy&, const TrackingQualityPolicy&) = default;
+};
+
+// Full source observation and map evidence accompany the mapped capture. The
+// default has no provenance and is ineligible; no legacy permissive fallback.
 struct PoseObservation {
     std::uint64_t frame_id = 0;
     std::uint64_t capture_pi_us = 0;
     std::uint32_t calibration_id = 0;
     bool tracked = false;
+    std::uint32_t association_version = 0;
+    TrackingEnvelope envelope;
+    SkeletonFrame source_frame;
+    TrackingClockMap mapping;
+    TrackingQualityPolicy quality_policy;
+    std::uint32_t total_uncertainty_us = 0;
+    std::uint64_t received_pi_us = 0;
     friend bool operator==(const PoseObservation&, const PoseObservation&) = default;
 };
 
