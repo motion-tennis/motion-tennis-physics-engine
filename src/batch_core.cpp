@@ -54,6 +54,11 @@ void BatchCore::emit_feedback(const FeedbackResult& feedback) {
     }
 }
 
+void BatchCore::finish_input(const FeedbackResult& feedback) {
+    scheduler_.remember_terminal(feedback);
+    emit_feedback(feedback);
+}
+
 void BatchCore::emit_trace(const TraceRecord& record) {
     if (!trace_.push_back(record)) {
         ++counters_.trace_lost;
@@ -88,17 +93,23 @@ void BatchCore::pause(PauseReason reason) {
 
 AdmitResult BatchCore::admit(const ControllerInput& input, std::uint64_t arrival_pi_us) {
     const AdmitResult result = scheduler_.admit(input, arrival_pi_us);
-    if (result != AdmitResult::Queued) {
+    if (result == AdmitResult::DuplicateTransaction) {
+        if (const auto* terminal = scheduler_.terminal_result(input.transaction)) {
+            emit_feedback(*terminal);
+        }
+    } else if (result == AdmitResult::QueueFull || result == AdmitResult::UnknownController) {
         FeedbackResult feedback;
         feedback.transaction = input.transaction;
         feedback.game_session_id = setup_.game_session_id;
         feedback.writer_epoch = setup_.writer_epoch;
         feedback.outcome = result == AdmitResult::QueueFull ? Outcome::Overloaded : Outcome::InvalidInput;
-        feedback.reason = result == AdmitResult::QueueFull ? "controller queue full"
-                          : result == AdmitResult::DuplicateTransaction ? "duplicate pending transaction"
-                                                                        : "controller absent from roster";
+        feedback.reason = result == AdmitResult::QueueFull ? "controller queue full" : "invalid controller transaction";
         ++counters_.input_failures;
-        emit_feedback(feedback);
+        if (result == AdmitResult::QueueFull) {
+            finish_input(feedback);
+        } else {
+            emit_feedback(feedback);
+        }
     }
     return result;
 }
@@ -165,7 +176,7 @@ void BatchCore::fail_batch(Outcome outcome, PauseReason reason, std::string_view
         FeedbackResult feedback = feedback_for(in_flight_.inputs[index].input.transaction);
         feedback.outcome = outcome;
         feedback.reason = why;
-        emit_feedback(feedback);
+        finish_input(feedback);
     }
     ++counters_.batches_failed;
     in_flight_ = InFlight{};
@@ -272,7 +283,7 @@ bool BatchCore::recheck_inputs(std::uint64_t now_pi_us, bool capture_pose) {
         FeedbackResult feedback = feedback_for(in_flight_.inputs[index].input.transaction);
         feedback.outcome = failure;
         feedback.reason = "input failed eligibility check";
-        emit_feedback(feedback);
+        finish_input(feedback);
 
         TraceRecord record;
         record.kind = TraceKind::InputFailed;
@@ -438,7 +449,7 @@ void BatchCore::on_commit_result(const StateCommitResult& result) {
                                                                            : Outcome::StateConflict;
             feedback.reason = result.reason;
         }
-        emit_feedback(feedback);
+        finish_input(feedback);
     }
 
     switch (result.status) {

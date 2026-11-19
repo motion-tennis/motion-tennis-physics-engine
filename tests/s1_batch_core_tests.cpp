@@ -278,10 +278,9 @@ void test_per_controller_limit_and_queue_overflow() {
     CHECK(rig.core.admit(stranger, now - 2000) == AdmitResult::UnknownController);
 
     auto feedback = drain(rig.core);
-    CHECK(feedback.size() == 3);
+    CHECK(feedback.size() == 2);
     CHECK(feedback[0].outcome == Outcome::Overloaded && !feedback[0].committed);
     CHECK(feedback[1].outcome == Outcome::InvalidInput);
-    CHECK(feedback[2].outcome == Outcome::InvalidInput);
 
     const auto request = rig.core.release(kInitialTick + 1);
     CHECK(request.has_value() && request->queries.size() == 2);  // At most two per controller.
@@ -293,6 +292,130 @@ void test_per_controller_limit_and_queue_overflow() {
     CHECK(next.has_value() && next->queries.size() == 2);
     CHECK(next->queries[0].transaction.request_seq == 3);
     CHECK(rig.core.scheduler_counters().rejected_overflow == 1);
+}
+
+void test_controller_replay_has_one_committed_contact() {
+    Rig rig;
+    const auto now = kInitialPiTimeUs + 5000;
+    const auto input = input_for(1, 1, now - 2000);
+    rig.evaluator.script_hit(controller_for_slot(1), 1, Vector3{0, 5, -10});
+    CHECK(rig.core.admit(input, now) == AdmitResult::Queued);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    const auto request = rig.core.release(kInitialTick + 1);
+    CHECK(request->queries.size() == 1);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    rig.core.on_query_response(rig.service.query(*request), now);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    const auto update = rig.core.prepare_commit(now);
+    CHECK(update->decisions.size() == 1);
+    const auto result = rig.service.commit(*update);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    for (unsigned i = 0; i < kMaxCommitResends; ++i) {
+        CHECK(rig.core.on_commit_timeout() == update);
+    }
+    CHECK(!rig.core.on_commit_timeout() && rig.core.pause_reason() == PauseReason::CommitAmbiguous);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    CHECK(drain(rig.core).empty());
+    rig.core.on_commit_result(*result);
+    const auto original = drain(rig.core);
+    CHECK(original.size() == 1 && original[0].committed && original[0].outcome == Outcome::Hit);
+
+    auto replay = input;
+    replay.sample_id += 1;
+    CHECK(rig.core.admit(replay, now + 1) == AdmitResult::DuplicateTransaction);
+    CHECK(drain(rig.core) == original);
+    CHECK(rig.core.pending_inputs() == 0 && rig.service.accepted_commits() == 1);
+    CHECK(rig.service.snapshot().match.rally.contact_id == 1);
+    CHECK(rig.evaluator.observations().size() == 1);
+    CHECK(rig.core.release(kInitialTick + 2)->queries.empty());
+}
+
+void test_controller_replay_preserves_terminal_failures() {
+    Rig rig;
+    const auto now = kInitialPiTimeUs + 5000;
+    const auto input = input_for(1, 1, now - 2000);
+    rig.core.admit(input, now);
+    const auto request = rig.core.release(kInitialTick + 1);
+    rig.core.on_query_response(rig.service.query(*request), now);
+    const auto update = rig.core.prepare_commit(now);
+    rig.service.bump_version_for_test();
+    auto rejected = *rig.service.commit(*update);
+    std::array<char, 128> adapter_buffer;
+    adapter_buffer.fill('x');
+    rejected.reason = {adapter_buffer.data(), adapter_buffer.size()};
+    rig.core.on_commit_result(rejected);
+    adapter_buffer.fill('y');
+    const auto original = drain(rig.core);
+    CHECK(original.size() == 1 && original[0].outcome == Outcome::StateConflict && !original[0].committed);
+    CHECK(std::string_view(original[0].reason).size() == adapter_buffer.size());
+    CHECK(std::string_view(original[0].reason).find_first_not_of('x') == std::string_view::npos);
+    CHECK(rig.core.admit(input, now) == AdmitResult::DuplicateTransaction);
+    CHECK(drain(rig.core) == original && rig.core.pending_inputs() == 0);
+
+    const auto stale = input_for(1, 2, now - 40000);
+    CHECK(rig.core.admit(stale, now) == AdmitResult::Queued);
+    run_batch(rig.core, rig.service, kInitialTick + 2, now);
+    const auto failure = drain(rig.core);
+    CHECK(failure.size() == 1 && failure[0].outcome == Outcome::StaleInput && !failure[0].committed);
+    CHECK(rig.core.admit(stale, now + 1) == AdmitResult::DuplicateTransaction);
+    CHECK(drain(rig.core) == failure && rig.core.pending_inputs() == 0);
+}
+
+void test_controller_replay_window_and_session_isolation() {
+    Rig rig;
+    const auto now = kInitialPiTimeUs + 5000;
+    auto offer = [&](std::uint32_t slot, std::uint64_t sequence) {
+        return rig.core.admit(input_for(slot, sequence, now - 2000), now);
+    };
+    CHECK(offer(1, kMaxWireUint64 + 1) == AdmitResult::UnknownController);
+    auto other_session = input_for(1, 1, now - 2000);
+    other_session.transaction.session_id = filled_uuid('Z');
+    CHECK(rig.core.admit(other_session, now) == AdmitResult::UnknownController);
+    drain(rig.core);
+    CHECK(offer(1, 2) == AdmitResult::Queued);
+    CHECK(offer(1, 1) == AdmitResult::Queued);
+    const auto request = rig.core.release(kInitialTick + 1);
+    CHECK(request->queries[0].transaction.request_seq == 2 && request->queries[1].transaction.request_seq == 1);
+    for (unsigned seq = 3; seq <= 6; ++seq) CHECK(offer(1, seq) == AdmitResult::Queued);
+    // Saturate the result cache with explicit overload outcomes while two older keys are in flight.
+    const std::uint64_t last = 10 + kTerminalResultsPerController;
+    for (std::uint64_t seq = 10; seq <= last; ++seq) {
+        CHECK(offer(1, seq) == AdmitResult::QueueFull);
+        const auto rejected = drain(rig.core);
+        CHECK(rejected.size() == 1 && rejected[0].outcome == Outcome::Overloaded);
+    }
+    CHECK(offer(1, 1) == AdmitResult::DuplicateTransaction);
+    CHECK(offer(1, 3) == AdmitResult::DuplicateTransaction);
+    CHECK(offer(1, 10) == AdmitResult::OutsideReplayWindow);
+    CHECK(offer(1, 8) == AdmitResult::OutsideReplayWindow);  // Unseen but older than the eviction fence.
+    CHECK(drain(rig.core).empty());
+    rig.core.on_query_response(rig.service.query(*request), now);
+    rig.core.on_commit_result(*rig.service.commit(*rig.core.prepare_commit(now)));
+    const auto accepted = drain(rig.core);
+    CHECK(accepted.size() == 2 && accepted[0].committed && accepted[1].committed);
+    CHECK(offer(1, 2) == AdmitResult::DuplicateTransaction);  // Retained result below the fence.
+    const auto replay = drain(rig.core);
+    CHECK(replay.size() == 1 && replay[0] == accepted[0]);
+    // Evict the completed batch's results before another release. They must now be classified as retired.
+    const std::uint64_t newest = last + kTerminalResultsPerController;
+    for (std::uint64_t seq = last + 1; seq <= newest; ++seq) {
+        CHECK(offer(1, seq) == AdmitResult::QueueFull);
+    }
+    drain(rig.core);
+    CHECK(offer(1, 2) == AdmitResult::OutsideReplayWindow);
+    CHECK(drain(rig.core).empty());
+    rig.core.release(kInitialTick + 2);
+    CHECK(offer(1, newest) == AdmitResult::DuplicateTransaction);  // Queue space has since become available.
+    const auto overflow = drain(rig.core);
+    CHECK(overflow.size() == 1 && overflow[0].outcome == Outcome::Overloaded && !overflow[0].committed);
+    CHECK(offer(2, 1) == AdmitResult::Queued);
+    CHECK(offer(1, newest + 1) == AdmitResult::Queued);
+
+    auto new_setup = build_setup();
+    new_setup.configuration.players[0].controller_session_id = other_session.transaction.session_id;
+    BatchCore rebound(new_setup, kInitialTick, rig.poses, rig.evaluator);
+    CHECK(rebound.admit(input_for(1, 1, now - 2000), now) == AdmitResult::UnknownController);
+    CHECK(rebound.admit(other_session, now) == AdmitResult::Queued);
 }
 
 void test_later_event_sees_earlier_candidate() {
@@ -634,6 +757,9 @@ const TestCase kTests[] = {
     {"lag_beyond_catch_up_pauses", test_lag_beyond_catch_up_pauses},
     {"eight_inputs_one_atomic_commit", test_eight_inputs_one_atomic_commit},
     {"per_controller_limit_and_queue_overflow", test_per_controller_limit_and_queue_overflow},
+    {"controller_replay_has_one_committed_contact", test_controller_replay_has_one_committed_contact},
+    {"controller_replay_preserves_terminal_failures", test_controller_replay_preserves_terminal_failures},
+    {"controller_replay_window_and_session_isolation", test_controller_replay_window_and_session_isolation},
     {"later_event_sees_earlier_candidate", test_later_event_sees_earlier_candidate},
     {"outgoing_speed_cap", test_outgoing_speed_cap},
     {"input_invalidated_before_submission_rebuilds", test_input_invalidated_before_submission_rebuilds},

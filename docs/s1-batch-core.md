@@ -56,6 +56,14 @@ Recorded output of `build/physics_s1_tests.exe`, last line: `23/23 S1 batch-core
 
 The 2026-11-11 MSVC Release rerun retains all 23 passes; the new `tracking_bridge_tests` target passes 34 additional checks. See the [consumer validation record](s1-tracking-consumer.md#validation-and-handoff) for current toolchain, actual-producer evidence and remaining limits.
 
+### Controller transaction replay — 2026-11-19
+
+The S1 repair on `task/s1-transaction-replay` uses physics base `d6d7143` and shared contract documentation `afcb301`. The earlier scheduler could admit one controller request again during its query and after its commit, allowing three committed contacts. Admission now matches controller ID, controller session and request sequence against queued work, the selected batch and retained terminal outcomes. A duplicate awaiting its original decision receives the duplicate admission status while the original request continues. After completion, repeats receive the same feedback, including its batch, event, cue and bounded reason. This also covers rejected inputs and queue overflow. The receiver can identify repeated feedback from the original transaction and cue identities.
+
+Each of the four bound controller sessions has a fixed history of its 16 most recently completed outcomes. This local capacity covers 16 completions per controller, equivalent to 80 ms at the nominal 200 Hz. Active keys are tracked separately for the four queued and at most two selected requests per controller. Eviction advances a per-session watermark to the highest evicted sequence. The scheduler checks active and retained identities first. Other sequences at or below the watermark return `OutsideReplayWindow` and increment a dedicated counter, including previously unseen packets that arrive that late. Newer unseen packets may arrive out of sequence and retain their Pi arrival order. The history lives in the current core and roster. Receiver recovery across process restarts still requires session coordination.
+
+The fresh Windows x64 Release build using the [host build commands](s1-tracking-consumer.md#validation-and-handoff) passed 26 batch-core and 34 tracking-bridge checks. The contact regression checks that queue, query, submission and commit-ambiguity replays produce one committed contact. A second case replays the original failure after the adapter's reason buffer changes. The third exercises cache pressure, eviction, reordered arrivals and controller session boundaries. The compatibility driver measured `sizeof(BatchCore)` at 90,040 bytes, up from the earlier 68,968-byte host layout. It measured `TrackingPoseBridge` at 18,144 bytes and `PoseObservation` at 704 bytes. Pi memory headroom remains unmeasured.
+
 ## Limits and evidence boundary
 
 These are host fixtures against fakes. They establish deterministic core semantics on this workstation only; they do not establish Pi 3 compute time, aarch64 float equivalence, network interoperability with the C# game store, clock accuracy or any latency target.
@@ -65,7 +73,6 @@ These are host fixtures against fakes. They establish deterministic core semanti
 - **No rules.** The core never changes serve, rally phase or score and emits no rule events. The fake service still rejects score changes without an award event.
 - **Declared time evidence.** Controller input still arrives through a fake already-Pi-time adapter. Tracking poses now require native source time plus a complete explicit immutable map, checked again by the core; no clock exchange or clock fitter is implemented or measured.
 - **Startup handshake.** As in the game-store slice, the fixtures start from a complete version-one snapshot; the live writer registration, setup acknowledgement and initial-state handshake still need to be pinned with the game service.
-- **Controller replay.** Input-scheduler duplicate detection covers queued transactions only. Re-admission of an in-flight or completed controller transaction remains a separate correction; the new tracking source/frame fences do not close that case.
 
 ## Handoff and next bounded options
 

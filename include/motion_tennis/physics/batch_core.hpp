@@ -97,7 +97,7 @@ public:
     BatchCore(const MatchSetup& setup, std::uint64_t committed_tick, const PoseSource& poses,
               const ContactEvaluator& evaluator, SimulationParameters parameters = {});
 
-    // Queues one controller input. Rejections produce explicit feedback.
+    // Returns admission status for each packet. A duplicate shares the original terminal outcome.
     AdmitResult admit(const ControllerInput& input, std::uint64_t arrival_pi_us);
 
     // Starts one batch toward the desired logical tick, or returns nullopt when
@@ -152,6 +152,7 @@ private:
     void fail_batch(Outcome outcome, PauseReason reason, std::string_view why);
     void pause(PauseReason reason);
     void emit_feedback(const FeedbackResult& feedback);
+    void finish_input(const FeedbackResult& feedback);
     void emit_trace(const TraceRecord& record);
     FeedbackResult feedback_for(const Transaction& transaction) const;
     const PlayerBinding& binding_for_slot(std::uint32_t slot) const;

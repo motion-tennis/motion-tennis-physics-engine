@@ -1,5 +1,6 @@
 #include "motion_tennis/physics/input_scheduler.hpp"
 
+#include <algorithm>
 #include <tuple>
 
 namespace motion_tennis::physics {
@@ -29,29 +30,55 @@ int InputScheduler::slot_index_for(const Transaction& transaction) const {
     return -1;
 }
 
-bool InputScheduler::is_queued(const Transaction& transaction) const {
-    for (const Ring& ring : queues_) {
-        for (std::size_t offset = 0; offset < ring.count; ++offset) {
-            const PendingInput& item = ring.items[(ring.head + offset) % kQueuePerController];
-            if (item.input.transaction == transaction) {
-                return true;
+const FeedbackResult* InputScheduler::terminal_result(const Transaction& transaction) const {
+    const int index = slot_index_for(transaction);
+    if (index >= 0 && transaction.request_seq != 0) {
+        for (const auto& result : histories_[static_cast<std::size_t>(index)].results) {
+            if (result.transaction == transaction) {
+                return &result;
             }
         }
     }
-    return false;
+    return nullptr;
+}
+
+void InputScheduler::remember_terminal(const FeedbackResult& result) {
+    const int index = slot_index_for(result.transaction);
+    if (index < 0) {
+        return;
+    }
+    auto active = std::find(selected_transactions_.begin(), selected_transactions_.end(), result.transaction);
+    if (active != selected_transactions_.end()) {
+        *active = Transaction{};
+    }
+    History& history = histories_[static_cast<std::size_t>(index)];
+    FeedbackResult& oldest = history.results[history.next];
+    history.retired_through = std::max(history.retired_through, oldest.transaction.request_seq);
+    oldest = result;
+    history.next = (history.next + 1) % history.results.size();
 }
 
 AdmitResult InputScheduler::admit(const ControllerInput& input, std::uint64_t arrival_pi_us) {
     const int index = slot_index_for(input.transaction);
-    if (index < 0 || input.transaction.request_seq == 0) {
+    if (index < 0 || input.transaction.request_seq == 0 || input.transaction.request_seq > kMaxWireUint64) {
         ++counters_.rejected_unknown;
         return AdmitResult::UnknownController;
     }
-    if (is_queued(input.transaction)) {
+    Ring& ring = queues_[static_cast<std::size_t>(index)];
+    // Empty ring cells have a zero request sequence and cannot match a valid input.
+    const bool queued = std::any_of(ring.items.begin(), ring.items.end(), [&](const PendingInput& item) {
+        return item.input.transaction == input.transaction;
+    });
+    const bool selected = std::find(selected_transactions_.begin(), selected_transactions_.end(),
+                                    input.transaction) != selected_transactions_.end();
+    if (queued || selected || terminal_result(input.transaction)) {
         ++counters_.rejected_duplicate;
         return AdmitResult::DuplicateTransaction;
     }
-    Ring& ring = queues_[static_cast<std::size_t>(index)];
+    if (input.transaction.request_seq <= histories_[static_cast<std::size_t>(index)].retired_through) {
+        ++counters_.rejected_outside_window;
+        return AdmitResult::OutsideReplayWindow;
+    }
     if (ring.count == kQueuePerController) {
         ++counters_.rejected_overflow;
         return AdmitResult::QueueFull;
@@ -67,6 +94,7 @@ AdmitResult InputScheduler::admit(const ControllerInput& input, std::uint64_t ar
 }
 
 BoundedVector<PendingInput, kMaxBatchQueries> InputScheduler::select_batch() {
+    selected_transactions_.clear();
     BoundedVector<PendingInput, kMaxBatchQueries> selected;
     const std::size_t start = static_cast<std::size_t>(release_count_ % kPlayers);
     for (std::size_t step = 0; step < kPlayers && !selected.full(); ++step) {
@@ -74,6 +102,7 @@ BoundedVector<PendingInput, kMaxBatchQueries> InputScheduler::select_batch() {
         for (std::size_t taken = 0;
              taken < kMaxQueriesPerController && ring.count > 0 && !selected.full(); ++taken) {
             selected.push_back(ring.items[ring.head]);
+            selected_transactions_.push_back(ring.items[ring.head].input.transaction);
             ring.items[ring.head] = PendingInput{};
             ring.head = (ring.head + 1) % kQueuePerController;
             --ring.count;

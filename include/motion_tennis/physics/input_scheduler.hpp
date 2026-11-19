@@ -10,6 +10,7 @@
 namespace motion_tennis::physics {
 
 inline constexpr std::size_t kQueuePerController = 4;
+inline constexpr std::size_t kTerminalResultsPerController = 16;
 
 struct PendingInput {
     ControllerInput input;
@@ -25,6 +26,7 @@ enum class AdmitResult {
     UnknownController,
     DuplicateTransaction,
     QueueFull,
+    OutsideReplayWindow,
 };
 
 struct SchedulerCounters {
@@ -32,6 +34,7 @@ struct SchedulerCounters {
     std::uint64_t rejected_unknown = 0;
     std::uint64_t rejected_duplicate = 0;
     std::uint64_t rejected_overflow = 0;
+    std::uint64_t rejected_outside_window = 0;
     std::uint64_t releases = 0;
     std::uint64_t selected = 0;
 };
@@ -45,6 +48,8 @@ public:
 
     AdmitResult admit(const ControllerInput& input, std::uint64_t arrival_pi_us);
     BoundedVector<PendingInput, kMaxBatchQueries> select_batch();
+    void remember_terminal(const FeedbackResult& result);
+    const FeedbackResult* terminal_result(const Transaction& transaction) const;
 
     std::size_t pending_for_slot(std::uint32_t slot) const;
     std::size_t total_pending() const;
@@ -58,10 +63,16 @@ private:
     };
 
     int slot_index_for(const Transaction& transaction) const;
-    bool is_queued(const Transaction& transaction) const;
+    struct History {
+        std::array<FeedbackResult, kTerminalResultsPerController> results{};
+        std::size_t next = 0;
+        std::uint64_t retired_through = 0;
+    };
 
     std::array<PlayerBinding, kPlayers> bindings_;
     std::array<Ring, kPlayers> queues_{};
+    BoundedVector<Transaction, kMaxBatchQueries> selected_transactions_;
+    std::array<History, kPlayers> histories_{};
     std::uint64_t next_arrival_seq_ = 1;
     std::uint64_t release_count_ = 0;
     SchedulerCounters counters_;

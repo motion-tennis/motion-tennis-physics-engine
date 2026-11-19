@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string_view>
@@ -295,6 +296,29 @@ struct StateCommitResult {
     friend bool operator==(const StateCommitResult&, const StateCommitResult&) = default;
 };
 
+// Feedback can outlive the adapter buffer that supplied a rejection reason.
+// The shared profile admits at most 128 UTF-8 bytes.
+class FeedbackReason {
+public:
+    FeedbackReason& operator=(std::string_view value) {
+        if (value.size() > bytes_.size()) {
+            value = "state service reason exceeds the profile limit";
+        }
+        std::copy(value.begin(), value.end(), bytes_.begin());
+        size_ = static_cast<std::uint8_t>(value.size());
+        return *this;
+    }
+
+    operator std::string_view() const { return {bytes_.data(), size_}; }
+    friend bool operator==(const FeedbackReason& left, const FeedbackReason& right) {
+        return std::string_view(left) == std::string_view(right);
+    }
+
+private:
+    std::array<char, 128> bytes_{};
+    std::uint8_t size_ = 0;
+};
+
 struct FeedbackResult {
     Transaction transaction;
     Outcome outcome = Outcome::Unspecified;
@@ -306,7 +330,7 @@ struct FeedbackResult {
     std::uint64_t state_version = 0;
     std::uint64_t simulation_tick = 0;
     Cue cue;
-    std::string_view reason;
+    FeedbackReason reason;
     friend bool operator==(const FeedbackResult&, const FeedbackResult&) = default;
 };
 

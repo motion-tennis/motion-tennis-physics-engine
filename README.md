@@ -12,7 +12,7 @@ The [offline tracking consumer](docs/s1-tracking-consumer.md) adds typed v0.3 po
 
 | Status | Meaning |
 | --- | --- |
-| **Implemented** | S1 C++20/CMake batch core and bounded typed tracking consumer: fixed-step integration, atomic candidate rollback, explicit binding/map/quality validation, loss/restart fences and 57 host checks; no fusion, transport, C++ wire codec, rules or Pi build exists |
+| **Implemented** | S1 C++20/CMake batch core and typed tracking consumer with fixed-step integration, atomic candidate rollback, [controller transaction replay handling](docs/s1-batch-core.md#controller-transaction-replay--2026-11-19), binding/map/quality validation and loss/restart fences. The two host test targets cover 60 checks. Fusion, transport, C++ wire codecs, rules and a Pi build remain open. |
 | **Agreed design** | Pi-owned doubles physics/rules, four wireless battery controllers, automatic avatar movement with human racket gestures, webcam-first calibrated 2.5D gameplay, and an explicit ball-state request/response with the Windows game service |
 | **Proposed reference** | Native C++20/CMake on 64-bit Raspberry Pi OS Lite; bounded buffers, nonblocking I/O, 5 ms scheduling and ordered atomic batches |
 | **Open** | Verified OS/kernel/toolchain versions, calibrated error thresholds, measured Pi capacity and eventual performance-driven upgrades |
