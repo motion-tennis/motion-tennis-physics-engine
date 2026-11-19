@@ -12,7 +12,7 @@ The [offline tracking consumer](docs/s1-tracking-consumer.md) adds typed v0.3 po
 
 | Status | Meaning |
 | --- | --- |
-| **Implemented** | S1 C++20/CMake batch core and typed tracking consumer with fixed-step integration, atomic candidate rollback, [controller transaction replay handling](docs/s1-batch-core.md#controller-transaction-replay--2026-11-19), binding/map/quality validation and loss/restart fences. The two host test targets cover 60 checks. Fusion, transport, C++ wire codecs, rules and a Pi build remain open. |
+| **Implemented** | S1 C++20/CMake batch core and typed tracking consumer with fixed-step integration, atomic candidate rollback, [controller transaction replay handling](docs/s1-batch-core.md#controller-transaction-replay--2026-11-19), binding/map/quality validation and loss/restart fences. The [shared game fixture](docs/s1-batch-core.md#shared-physics-and-game-fixture) exports a rebuilt mixed batch and its rejected input. Fusion, transport, C++ wire codecs, rules and a Pi build remain open. |
 | **Agreed design** | Pi-owned doubles physics/rules, four wireless battery controllers, automatic avatar movement with human racket gestures, webcam-first calibrated 2.5D gameplay, and an explicit ball-state request/response with the Windows game service |
 | **Proposed reference** | Native C++20/CMake on 64-bit Raspberry Pi OS Lite; bounded buffers, nonblocking I/O, 5 ms scheduling and ordered atomic batches |
 | **Open** | Verified OS/kernel/toolchain versions, calibrated error thresholds, measured Pi capacity and eventual performance-driven upgrades |
@@ -101,7 +101,7 @@ ctest --test-dir build --output-on-failure
 git diff --check
 ```
 
-The two CTest targets contain 23 batch-core and 34 tracking-bridge checks. They establish controlled host semantics against explicit fixtures and fakes; see the [core evidence boundary](docs/s1-batch-core.md#limits-and-evidence-boundary) and [actual producer compatibility check](docs/s1-tracking-consumer.md#validation-and-handoff).
+CTest runs 26 batch-core checks, 34 tracking-bridge checks and the [shared game fixture producer](docs/s1-batch-core.md#shared-physics-and-game-fixture). See the [core evidence boundary](docs/s1-batch-core.md#limits-and-evidence-boundary) and the [tracking consumer check](docs/s1-tracking-consumer.md#validation-and-handoff) for the host fixture scope.
 
 Use the central [development checker](https://github.com/motion-tennis/documentation/blob/main/docs/development.md) for cross-repository links. The [debug specification](https://github.com/motion-tennis/documentation/blob/main/docs/debugging.md) covers correlated traces, packet evidence, failure denominators and replay; synthetic checks do not establish runtime performance.
 
@@ -120,7 +120,7 @@ tests/               S1 acceptance fixtures
 LICENSE              Existing MIT license
 ```
 
-No source establishes measured timing, fusion accuracy or collision behavior; the S1 core uses placeholder ball/avatar physics and scripted contacts. Clock-map validity and uncertainty are checked against caller-installed evidence; clock fitting, measured clock accuracy, calibrated geometry, heading drift and four-player capacity remain acceptance gates. Controller transaction replay after queue selection also remains an explicit S1 correction; tracking-frame replay fencing does not repair it. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
+The S1 core uses placeholder ball/avatar physics and scripted contacts. Clock-map validity and uncertainty are checked against caller-installed evidence. Clock fitting, measured timing and clock accuracy, calibrated geometry, heading drift and four-player capacity remain acceptance gates. See [open decisions](https://github.com/motion-tennis/documentation/blob/main/docs/roadmap.md).
 
 All project edits must be in English, including code, identifiers, comments, docstrings, examples and diagrams. New C/C++ comments use `//`. Keep the shared schema/profile, architecture and related README contracts consistent.
 

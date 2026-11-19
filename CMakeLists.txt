@@ -41,4 +41,8 @@ if(MOTION_TENNIS_BUILD_TESTS)
     target_link_libraries(tracking_bridge_tests
         PRIVATE motion_tennis_physics_fakes motion_tennis_physics_options)
     add_test(NAME tracking_bridge_tests COMMAND tracking_bridge_tests)
+    add_executable(s1_game_fixture tests/s1_game_fixture.cpp)
+    target_link_libraries(s1_game_fixture
+        PRIVATE motion_tennis_physics_fakes motion_tennis_physics_options)
+    add_test(NAME s1_game_fixture COMMAND s1_game_fixture)
 endif()

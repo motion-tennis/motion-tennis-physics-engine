@@ -64,11 +64,17 @@ Each of the four bound controller sessions has a fixed history of its 16 most re
 
 The fresh Windows x64 Release build using the [host build commands](s1-tracking-consumer.md#validation-and-handoff) passed 26 batch-core and 34 tracking-bridge checks. The contact regression checks that queue, query, submission and commit-ambiguity replays produce one committed contact. A second case replays the original failure after the adapter's reason buffer changes. The third exercises cache pressure, eviction, reordered arrivals and controller session boundaries. The compatibility driver measured `sizeof(BatchCore)` at 90,040 bytes, up from the earlier 68,968-byte host layout. It measured `TrackingPoseBridge` at 18,144 bytes and `PoseObservation` at 704 bytes. Pi memory headroom remains unmeasured.
 
+### Shared physics and game fixture
+
+The [fixture producer](../tests/s1_game_fixture.cpp) runs the S1 core with three synthetic inputs and exports its actual query, initial response snapshot, rebuilt update and failed-input evidence. The first and middle inputs produce hits in the initial candidate. The middle input ages from 25 ms at query response to 31 ms at submission. The core rebuilds against the original snapshot, preserving the first hit and the last miss as decision indices 0 and 1. The candidate contains one contact. The rejection record joins the uncommitted terminal feedback to its `InputFailed` trace by transaction, batch, writer epoch and query identity, retaining the observation time of 521,000 Pi microseconds.
+
+The `s1_game_fixture` executable is a CTest target. It writes JSON to standard output and accepts an optional expected configuration SHA-256 in lowercase hex. The [shared check](https://github.com/motion-tennis/documentation/blob/main/scripts/check_s1_shared_batch.py) also validates the emitted typed configuration against the deterministic v0.3 encoding and passes the update and rejected transaction to the C# store. Run that entry point to reproduce both components together. The [shared handoff](https://github.com/motion-tennis/documentation/blob/main/docs/s1-physics-game-fixture.md) records the host prerequisites, accounting checks and evidence boundaries. The rejected-input list is supplied separately to the store's existing API.
+
 ## Limits and evidence boundary
 
 These are host fixtures against fakes. They establish deterministic core semantics on this workstation only; they do not establish Pi 3 compute time, aarch64 float equivalence, network interoperability with the C# game store, clock accuracy or any latency target.
 
-- **Typed, not wire, contract.** No generated Protobuf/nanopb code is used yet. The configuration digest is an opaque placeholder in the fixtures; the real SHA-256 over deterministic encoding needs the generated codec. Retry identity is compared on typed structures here, while production must compare the original canonical bytes.
+- **Typed contract.** The shared host fixture pins the canonical configuration digest. The C++ core compares typed structures for retry identity. A future transport adapter must verify the original canonical message bytes.
 - **Placeholder physics.** No net, lines, racket disk, contact latch or spin. Hits come from the scripted evaluator, not from fused pose/IMU geometry. Avatar movement only follows the committed target; no target selection or teammate arbitration happens.
 - **No rules.** The core never changes serve, rally phase or score and emits no rule events. The fake service still rejects score changes without an award event.
 - **Declared time evidence.** Controller input still arrives through a fake already-Pi-time adapter. Tracking poses now require native source time plus a complete explicit immutable map, checked again by the core; no clock exchange or clock fitter is implemented or measured.
@@ -76,10 +82,10 @@ These are host fixtures against fakes. They establish deterministic core semanti
 
 ## Handoff and next bounded options
 
-The paired consumer is the C# store in `motion-tennis-game-engine` (`docs/s1-state-store.md`). Both slices use the same shared fixture shape, but they have not exchanged real messages. Next options, each a separate task:
+The paired consumer is the C# store in `motion-tennis-game-engine` (`docs/s1-state-store.md`). The [shared fixture](#shared-physics-and-game-fixture) joins the two components for a controlled mixed batch. Remaining work includes:
 
 1. Generate the v0.3 C++ codec from the accepted schema and replace the typed mirror at the adapter boundary, including canonical retry bytes and the real configuration digest.
-2. Cross-check against the shared Python oracle by exporting the core's candidate updates as fixtures for `tests/match`.
+2. Join controller, physics and game exports across the query, rejection, commit, publication and feedback boundaries with native correlation and timestamp evidence.
 3. Repeat the build and replay on the Pi 3 toolchain (aarch64 GCC) and record float equivalence and compute time per batch.
 
-The central S1 checklist item for physics needs the shared S1 review; this local pass is component evidence only.
+The [central S1 ledger](https://github.com/motion-tennis/documentation/blob/main/docs/project-status.md#remaining-s1-work-at-this-review) tracks the remaining shared evidence and stage acceptance.

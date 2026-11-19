@@ -49,9 +49,12 @@ inline MatchSetup build_setup(std::uint8_t session_byte = 'G', std::uint64_t wri
         player.physical_station_id = slot;
     }
     configuration.rules = MatchRules{2, 6, 2, 6, 7, 2, true, filled_sha('U')};
-    // Placeholder: the real digest is SHA-256 over the deterministic Protobuf
-    // encoding and needs the generated codec, which is outside this slice.
-    setup.configuration_sha256 = filled_sha('C');
+    // SHA-256 of the canonical v0.3 fixture configuration. The shared
+    // physics/game check re-encodes these typed fields with the generated codec.
+    setup.configuration_sha256 = {
+        0x31, 0x5a, 0x01, 0xbd, 0x6c, 0xa7, 0x97, 0x98, 0xb5, 0xf9, 0x8e, 0xb7, 0x4f, 0x6d, 0x00, 0x94,
+        0xdb, 0xf7, 0x5e, 0xf1, 0xa8, 0x6d, 0x09, 0x00, 0x30, 0xca, 0xb2, 0xf2, 0xf0, 0xf5, 0x09, 0x05
+    };
     return setup;
 }
 
